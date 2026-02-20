@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Label must match the filename (without .plist) -->
+  <key>Label</key>
+  <string>com.nen.daemon</string>
+
+  <!-- Path to the compiled nen binary (filled in by install.ts) -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NEN_BINARY_PATH__</string>
+  </array>
+
+  <!-- Run at login -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- Restart if the daemon exits unexpectedly -->
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- Standard output log -->
+  <key>StandardOutPath</key>
+  <string>__NEN_LOG_DIR__/nen.out.log</string>
+
+  <!-- Standard error log -->
+  <key>StandardErrorPath</key>
+  <string>__NEN_LOG_DIR__/nen.err.log</string>
+
+  <!-- Environment variables available to the daemon -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>__HOME__</string>
+    <key>PATH</key>
+    <string>__PATH__</string>
+  </dict>
+
+  <!-- Working directory -->
+  <key>WorkingDirectory</key>
+  <string>__HOME__</string>
+
+  <!-- Throttle restarts (seconds) -->
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+</dict>
+</plist>

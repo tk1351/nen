@@ -1,0 +1,84 @@
+/**
+ * handler.ts - HTTP request handler for the nen daemon (DI-injected).
+ */
+
+import type {
+  HandlerDeps,
+  SuggestionRequest,
+  SuggestionResponse,
+} from "../types.ts";
+
+const DEFAULT_LIMIT = 10;
+
+/**
+ * Creates a Deno-compatible `fetch` handler that processes suggestion requests.
+ *
+ * The handler accepts:
+ *   POST /suggest   body: SuggestionRequest  → SuggestionResponse
+ *   GET  /health    → 200 OK
+ *
+ * @param deps - Injected dependencies (getCandidates, checkDanger).
+ */
+export function createHandler(
+  deps: HandlerDeps,
+): (req: Request) => Promise<Response> {
+  return async (req: Request): Promise<Response> => {
+    const url = new URL(req.url);
+
+    if (req.method === "GET" && url.pathname === "/health") {
+      return new Response("OK", { status: 200 });
+    }
+
+    if (req.method === "POST" && url.pathname === "/suggest") {
+      return handleSuggest(req, deps);
+    }
+
+    return new Response("Not Found", { status: 404 });
+  };
+}
+
+async function handleSuggest(req: Request, deps: HandlerDeps): Promise<Response> {
+  let body: SuggestionRequest;
+  try {
+    body = (await req.json()) as SuggestionRequest;
+  } catch {
+    return new Response("Bad Request: invalid JSON", { status: 400 });
+  }
+
+  if (typeof body.buffer !== "string") {
+    return new Response("Bad Request: buffer must be a string", { status: 400 });
+  }
+
+  const limit = body.limit ?? DEFAULT_LIMIT;
+  const buffer = body.buffer;
+
+  if (buffer.trim().length === 0) {
+    const response: SuggestionResponse = { suggestions: [], hasDanger: false };
+    return jsonResponse(response);
+  }
+
+  const candidates = await deps.getCandidates(buffer, limit);
+
+  const suggestions = candidates.map((c) => {
+    const danger = deps.checkDanger(c.text);
+    return {
+      text: c.text,
+      description: c.description,
+      source: c.source,
+      score: c.frequency,
+      danger: danger.isDangerous ? danger : undefined,
+    };
+  });
+
+  const hasDanger = suggestions.some((s) => s.danger?.isDangerous);
+
+  const response: SuggestionResponse = { suggestions, hasDanger };
+  return jsonResponse(response);
+}
+
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
