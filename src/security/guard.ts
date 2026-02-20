@@ -13,7 +13,7 @@ interface DangerPattern {
 
 const DANGER_PATTERNS: DangerPattern[] = [
   {
-    pattern: /rm\s+-[^\s]*r[^\s]*\s+(\/|~|\$HOME)\b/,
+    pattern: /rm\s+-[^\s]*r[^\s]*\s+(\/|~|\$HOME)(?:\s|$)/,
     severity: "critical",
     reason: "Recursively deletes root or home directory",
     description: "rm -rf / or rm -rf ~",
