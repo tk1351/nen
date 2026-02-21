@@ -13,22 +13,26 @@ interface DangerPattern {
 
 const DANGER_PATTERNS: DangerPattern[] = [
   {
-    pattern: /rm\s+-[^\s]*r[^\s]*\s+(\/|~|\$HOME)(?:\s|$)/,
+    // Matches rm with a recursive flag (-r/-R/-rf/-rfc etc.) with optional
+    // preceding flags (e.g. -f -r /) targeting root, home, or $HOME.
+    pattern: /rm\s+(?:-\S+\s+)*-\S*[rR]\S*(?:\s+-\S+)*\s+(\/|~|\$HOME)(?:\s|$)/,
     severity: "critical",
     reason: "Recursively deletes root or home directory",
     description: "rm -rf / or rm -rf ~",
   },
   {
-    pattern: /:\(\)\s*\{?\s*:\s*\|\s*:&\s*\}?\s*;?\s*:/,
+    // Flexible spacing: detects :(){ :|:&};: and variants like :(){ :|:&}
+    pattern: /:\s*\(\s*\)\s*\{?\s*:\s*\|\s*:\s*&/,
     severity: "critical",
     reason: "Fork bomb — will exhaust system resources",
     description: ":(){:|:&};:",
   },
   {
-    pattern: /dd\s+.*of=\/dev\/(sd|hd|nvme|disk)/,
+    // Includes macOS raw disk devices (/dev/rdisk*) in addition to Linux forms
+    pattern: /dd\s+.*of=\/dev\/(sd|hd|nvme|disk|rdisk)/,
     severity: "critical",
     reason: "Overwrites a raw disk device",
-    description: "dd if=... of=/dev/sd*",
+    description: "dd if=... of=/dev/sd* or /dev/rdisk*",
   },
   {
     pattern: /\bsudo\b/,
@@ -37,7 +41,9 @@ const DANGER_PATTERNS: DangerPattern[] = [
     description: "sudo",
   },
   {
-    pattern: /chmod\s+[0-7]*[2367][0-7]{2}/,
+    // Checks the LAST octal digit (others permissions): 2/3/6/7 = write bit set.
+    // Avoids false-positives like chmod 644 or chmod 600.
+    pattern: /chmod\s+[0-7]{0,3}[2367](?:\s|$)/,
     severity: "high",
     reason: "Makes file world-writable",
     description: "chmod world-writable",
@@ -67,7 +73,7 @@ const DANGER_PATTERNS: DangerPattern[] = [
     description: "curl/wget | sh/bash/zsh/dash",
   },
   {
-    pattern: /chmod\s+[augo]*[+][rwx]*w[rwx]*\s/,
+    pattern: /chmod\s+[augo]*[+][rwx]*w[rwx]*(?:\s|$)/,
     severity: "high",
     reason: "Adds write permission using symbolic mode",
     description: "chmod symbolic world/group writable",

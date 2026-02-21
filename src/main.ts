@@ -117,10 +117,12 @@ export async function startDaemon(opts?: DaemonOpts): Promise<void> {
       path: socketPath,
       signal: ac.signal,
       onListen: () => {
-        // Restrict socket to owner only (prevent other users from reading history)
-        Deno.chmod(socketPath, 0o600).catch((err) =>
-          logError("chmod socket", err)
-        );
+        // Restrict socket to owner only (prevent other users from reading history).
+        // If chmod fails the socket could be world-readable, so abort the daemon.
+        Deno.chmod(socketPath, 0o600).catch(async (err) => {
+          await logError("chmod socket", err);
+          ac.abort();
+        });
       },
     },
     createHandler(createDeps(store)),

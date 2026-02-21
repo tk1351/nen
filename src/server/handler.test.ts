@@ -117,6 +117,24 @@ Deno.test("handler - POST /suggest with oversized buffer returns 400", async () 
   assertEquals(res.status, 400);
 });
 
+Deno.test("handler - POST /suggest with string limit returns 400", async () => {
+  const handler = createHandler(makeDeps());
+  const req = makeRequest("/suggest", "POST", { buffer: "git", limit: "999" });
+  const res = await handler(req);
+  assertEquals(res.status, 400);
+});
+
+Deno.test("handler - POST /suggest returns 500 when getCandidates throws", async () => {
+  const deps: HandlerDeps = {
+    getCandidates: () => Promise.reject(new Error("DB error")),
+    checkDanger: () => ({ isDangerous: false, severity: "low" as const, reason: "", pattern: "" }),
+  };
+  const handler = createHandler(deps);
+  const req = makeRequest("/suggest", "POST", { buffer: "git" });
+  const res = await handler(req);
+  assertEquals(res.status, 500);
+});
+
 Deno.test("handler - POST /suggest clamps limit to max 100", async () => {
   let capturedLimit = 0;
   const deps: HandlerDeps = {

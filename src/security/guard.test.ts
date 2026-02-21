@@ -117,3 +117,37 @@ Deno.test("checkDanger - dot source absolute path is medium", () => {
   assertEquals(result.isDangerous, true);
   assertEquals(result.severity, "medium");
 });
+
+Deno.test("checkDanger - rm -f -r / is critical (space-separated flags)", () => {
+  const result = checkDanger("rm -f -r /");
+  assertEquals(result.isDangerous, true);
+  assertEquals(result.severity, "critical");
+});
+
+Deno.test("checkDanger - rm -rfc / is critical (combined flags)", () => {
+  const result = checkDanger("rm -rfc /");
+  assertEquals(result.isDangerous, true);
+  assertEquals(result.severity, "critical");
+});
+
+Deno.test("checkDanger - fork bomb variant with spaces is critical", () => {
+  const result = checkDanger(":(){ :|:&}");
+  assertEquals(result.isDangerous, true);
+  assertEquals(result.severity, "critical");
+});
+
+Deno.test("checkDanger - dd to macOS raw disk is critical", () => {
+  const result = checkDanger("dd if=/dev/zero of=/dev/rdisk0");
+  assertEquals(result.isDangerous, true);
+  assertEquals(result.severity, "critical");
+});
+
+Deno.test("checkDanger - chmod 644 is safe (not world-writable)", () => {
+  const result = checkDanger("chmod 644 file.txt");
+  assertEquals(result.isDangerous, false);
+});
+
+Deno.test("checkDanger - chmod 600 is safe (owner-only)", () => {
+  const result = checkDanger("chmod 600 ~/.ssh/id_rsa");
+  assertEquals(result.isDangerous, false);
+});

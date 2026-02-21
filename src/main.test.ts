@@ -38,7 +38,10 @@ async function unixFetch(
   const total = chunks.reduce((s, c) => s + c.length, 0);
   const merged = new Uint8Array(total);
   let off = 0;
-  for (const c of chunks) { merged.set(c, off); off += c.length; }
+  for (const c of chunks) {
+    merged.set(c, off);
+    off += c.length;
+  }
   const raw = new TextDecoder().decode(merged);
   const [head, ...rest] = raw.split("\r\n\r\n");
   const statusLine = head.split("\r\n")[0];

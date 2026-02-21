@@ -2,11 +2,8 @@
  * handler.ts - HTTP request handler for the nen daemon (DI-injected).
  */
 
-import type {
-  HandlerDeps,
-  SuggestionRequest,
-  SuggestionResponse,
-} from "../types.ts";
+import { rankCandidates } from "../matcher/fuzzy.ts";
+import type { HandlerDeps, SuggestionRequest, SuggestionResponse } from "../types.ts";
 
 const DEFAULT_LIMIT = 10;
 const MAX_BUFFER_LENGTH = 10_000;
@@ -55,6 +52,10 @@ async function handleSuggest(req: Request, deps: HandlerDeps): Promise<Response>
     return new Response("Bad Request: buffer too long", { status: 400 });
   }
 
+  if (body.limit !== undefined && typeof body.limit !== "number") {
+    return new Response("Bad Request: limit must be a number", { status: 400 });
+  }
+
   const limit = Math.min(Math.max(1, body.limit ?? DEFAULT_LIMIT), MAX_LIMIT);
   const buffer = body.buffer;
 
@@ -63,15 +64,21 @@ async function handleSuggest(req: Request, deps: HandlerDeps): Promise<Response>
     return jsonResponse(response);
   }
 
-  const candidates = await deps.getCandidates(buffer, limit);
+  let rawCandidates;
+  try {
+    rawCandidates = await deps.getCandidates(buffer, limit);
+  } catch {
+    return new Response("Internal Server Error", { status: 500 });
+  }
 
-  const suggestions = candidates.map((c) => {
-    const danger = deps.checkDanger(c.text);
+  const ranked = rankCandidates(buffer, rawCandidates, limit);
+  const suggestions = ranked.map((s) => {
+    const danger = deps.checkDanger(s.text);
     return {
-      text: c.text,
-      description: c.description,
-      source: c.source,
-      score: c.frequency,
+      text: s.text,
+      description: s.description,
+      source: s.source,
+      score: s.score,
       danger: danger.isDangerous ? danger : undefined,
     };
   });

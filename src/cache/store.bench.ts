@@ -45,12 +45,16 @@ Deno.bench("bulkInsert 5000 entries", () => {
   }
 });
 
-Deno.bench("queryPrefix 'command_1' limit 10 (1000 entries pre-loaded)", { baseline: false }, () => {
-  const store = openStore(tmpPath());
-  store.bulkInsert(makeEntries(1000));
-  try {
-    store.queryPrefix("command_1", 10);
-  } finally {
-    store.close();
-  }
-});
+Deno.bench(
+  "queryPrefix 'command_1' limit 10 (1000 entries pre-loaded)",
+  { baseline: false },
+  () => {
+    const store = openStore(tmpPath());
+    store.bulkInsert(makeEntries(1000));
+    try {
+      store.queryPrefix("command_1", 10);
+    } finally {
+      store.close();
+    }
+  },
+);

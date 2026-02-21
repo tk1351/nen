@@ -82,8 +82,8 @@ export function rankCandidates(
     const fuzzy = fuzzyScore(query, candidate.text);
     if (fuzzy === null) continue;
 
-    // Boost score by frequency (log scale to avoid domination)
-    const freqBoost = Math.log1p(candidate.frequency) * 20;
+    // Boost score by frequency (log scale, capped to avoid dominating fuzzy score)
+    const freqBoost = Math.log1p(candidate.frequency) * 8;
     // History entries get a slight source bonus
     const sourceBoost = candidate.source === "history" ? 5 : 0;
 

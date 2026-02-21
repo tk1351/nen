@@ -4,6 +4,33 @@
 
 import type { MatchCandidate } from "../types.ts";
 
+/** Maximum number of concurrent file stat calls to avoid FD exhaustion. */
+const CONCURRENCY_LIMIT = 32;
+
+/**
+ * Runs async tasks with at most `limit` concurrent executions.
+ * Preserves result order matching the input task array.
+ */
+async function runWithConcurrency<T>(
+  tasks: Array<() => Promise<T>>,
+  limit: number,
+): Promise<T[]> {
+  if (tasks.length === 0) return [];
+  const results: T[] = new Array(tasks.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < tasks.length) {
+      const idx = nextIndex++;
+      results[idx] = await tasks[idx]();
+    }
+  }
+
+  const workerCount = Math.min(limit, tasks.length);
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
+}
+
 /**
  * Scans all directories in the given PATH string for executable files.
  * Returns a list of MatchCandidate with source="command".
@@ -28,11 +55,12 @@ export async function scanPathCommands(
       toCheck.push({ name: entry.name, path: `${dir}/${entry.name}` });
     }
 
-    const results = await Promise.all(
-      toCheck.map(async ({ name, path }) => ({
+    const results = await runWithConcurrency(
+      toCheck.map(({ name, path }) => async () => ({
         name,
         isExecutable: await checkExecutable(path),
       })),
+      CONCURRENCY_LIMIT,
     );
 
     for (const { name, isExecutable } of results) {

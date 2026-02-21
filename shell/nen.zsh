@@ -45,10 +45,12 @@ function _nen_fetch_suggestions() {
   [[ -z "$BUFFER" ]] && return
   [[ ! -S "$NEN_SOCKET" ]] && return
 
-  # JSON-encode the buffer: escape \ then " (the only characters requiring
-  # escaping in shell command strings that are valid JSON string content).
+  # JSON-encode the buffer: escape \ and " first, then ASCII control characters.
   local buf_escaped="${BUFFER//\\/\\\\}"
   buf_escaped="${buf_escaped//\"/\\\"}"
+  buf_escaped="${buf_escaped//$'\n'/\\n}"
+  buf_escaped="${buf_escaped//$'\r'/\\r}"
+  buf_escaped="${buf_escaped//$'\t'/\\t}"
   local payload="{\"buffer\":\"${buf_escaped}\",\"limit\":${NEN_MAX_SUGGESTIONS}}"
 
   local response

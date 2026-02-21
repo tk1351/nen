@@ -40,7 +40,6 @@ export function needsSourceLine(content: string, line: string): boolean {
 // Installer utilities
 // ---------------------------------------------------------------------------
 
-const HOME = Deno.env.get("HOME") ?? "/tmp";
 const SOURCE_LINE = 'source "$HOME/.nen/nen.zsh"';
 
 async function run(cmd: string[]): Promise<void> {
@@ -65,6 +64,18 @@ async function runIgnoreError(cmd: string[]): Promise<void> {
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
+  // Abort if HOME is not set — installing to /tmp would expose files to all users.
+  const HOME = Deno.env.get("HOME");
+  if (!HOME) {
+    console.error(
+      "[nen] Fatal: HOME environment variable is not set. Aborting installation.",
+    );
+    Deno.exit(1);
+  }
+
+  // Resolve the project root from this script's location (scripts/install.ts → ..)
+  const PROJECT_ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
+
   console.log("[nen] Installing...");
 
   // Step 1: Compile binary
@@ -74,7 +85,7 @@ async function main(): Promise<void> {
   // Step 2: Copy binary to ~/.local/bin
   const binDir = `${HOME}/.local/bin`;
   await Deno.mkdir(binDir, { recursive: true });
-  await Deno.copyFile("./nen", `${binDir}/nen`);
+  await Deno.copyFile(`${PROJECT_ROOT}/nen`, `${binDir}/nen`);
   await run(["chmod", "+x", `${binDir}/nen`]);
   console.log(`[nen] Binary installed → ${binDir}/nen`);
 
@@ -83,7 +94,9 @@ async function main(): Promise<void> {
   await Deno.mkdir(logDir, { recursive: true });
 
   // Step 4: Instantiate plist template
-  const plistTemplate = await Deno.readTextFile("./launchd/com.nen.daemon.plist");
+  const plistTemplate = await Deno.readTextFile(
+    `${PROJECT_ROOT}/launchd/com.nen.daemon.plist`,
+  );
   const plist = substituteTemplate(plistTemplate, {
     NEN_BINARY_PATH: `${binDir}/nen`,
     NEN_LOG_DIR: logDir,
@@ -107,7 +120,7 @@ async function main(): Promise<void> {
   // Step 7: Copy shell integration
   const nenDir = `${HOME}/.nen`;
   await Deno.mkdir(nenDir, { recursive: true });
-  await Deno.copyFile("./shell/nen.zsh", `${nenDir}/nen.zsh`);
+  await Deno.copyFile(`${PROJECT_ROOT}/shell/nen.zsh`, `${nenDir}/nen.zsh`);
 
   // Step 8: Patch ~/.zshrc (idempotent)
   const zshrc = `${HOME}/.zshrc`;
