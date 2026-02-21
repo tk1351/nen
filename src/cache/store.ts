@@ -55,12 +55,20 @@ export class CacheStore {
 
   /** Bulk-inserts entries (ignores duplicates). */
   bulkInsert(entries: CacheEntry[]): void {
+    if (entries.length === 0) return;
     const stmt = this.#db.prepare(
       `INSERT OR IGNORE INTO entries (command, source, frequency, description, last_used)
        VALUES (?, ?, ?, ?, ?)`,
     );
-    for (const e of entries) {
-      stmt.run(e.command, e.source, e.frequency, e.description ?? null, e.lastUsed);
+    this.#db.exec("BEGIN");
+    try {
+      for (const e of entries) {
+        stmt.run(e.command, e.source, e.frequency, e.description ?? null, e.lastUsed);
+      }
+      this.#db.exec("COMMIT");
+    } catch (err) {
+      this.#db.exec("ROLLBACK");
+      throw err;
     }
   }
 

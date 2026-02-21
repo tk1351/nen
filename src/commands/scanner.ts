@@ -20,19 +20,25 @@ export async function scanPathCommands(
 
   for (const dir of dirs) {
     const entries = await readDirSafe(dir);
+    const toCheck: Array<{ name: string; path: string }> = [];
     for (const entry of entries) {
       if (!entry.isFile && !entry.isSymlink) continue;
       if (seen.has(entry.name)) continue;
-
-      const isExecutable = await checkExecutable(`${dir}/${entry.name}`);
-      if (!isExecutable) continue;
-
       seen.add(entry.name);
-      candidates.push({
-        text: entry.name,
-        source: "command",
-        frequency: 0,
-      });
+      toCheck.push({ name: entry.name, path: `${dir}/${entry.name}` });
+    }
+
+    const results = await Promise.all(
+      toCheck.map(async ({ name, path }) => ({
+        name,
+        isExecutable: await checkExecutable(path),
+      })),
+    );
+
+    for (const { name, isExecutable } of results) {
+      if (isExecutable) {
+        candidates.push({ text: name, source: "command", frequency: 0 });
+      }
     }
   }
 
