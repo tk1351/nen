@@ -45,25 +45,40 @@ function _nen_fetch_suggestions() {
   [[ -z "$BUFFER" ]] && return
   [[ ! -S "$NEN_SOCKET" ]] && return
 
+  # JSON-encode the buffer: escape \ then " (the only characters requiring
+  # escaping in shell command strings that are valid JSON string content).
+  local buf_escaped="${BUFFER//\\/\\\\}"
+  buf_escaped="${buf_escaped//\"/\\\"}"
+  local payload="{\"buffer\":\"${buf_escaped}\",\"limit\":${NEN_MAX_SUGGESTIONS}}"
+
+  local response
+  response=$(curl -sf \
+    --unix-socket "$NEN_SOCKET" \
+    --max-time "$NEN_TIMEOUT" \
+    -X POST \
+    -H "Content-Type: application/json" \
+    -d "$payload" \
+    "http://localhost/suggest" 2>/dev/null) || return
+
+  [[ -z "$response" ]] && return
+
+  # Parse JSON response.  Prefer jq when available for correctness;
+  # fall back to awk-based extraction for systems without jq.
   local parsed
-  parsed=$(python3 - "$BUFFER" "$NEN_MAX_SUGGESTIONS" "$NEN_SOCKET" "$NEN_TIMEOUT" 2>/dev/null <<'PYEOF'
-import json, sys, subprocess
-buf, limit, socket, timeout = sys.argv[1], int(sys.argv[2]), sys.argv[3], float(sys.argv[4])
-payload = json.dumps({"buffer": buf, "limit": limit})
-try:
-    r = subprocess.run(
-        ["curl", "-sf", "--unix-socket", socket, "--max-time", str(timeout),
-         "-X", "POST", "-H", "Content-Type: application/json",
-         "-d", payload, "http://localhost/suggest"],
-        capture_output=True, text=True, timeout=timeout + 0.1)
-    d = json.loads(r.stdout)
-    print("1" if d.get("hasDanger") else "0")
-    for s in d.get("suggestions", []):
-        print(s["text"])
-except Exception:
-    pass
-PYEOF
-) || return
+  if command -v jq &>/dev/null; then
+    parsed=$(printf '%s' "$response" | \
+      jq -r '(if .hasDanger then "1" else "0" end), (.suggestions[]?.text // empty)' \
+      2>/dev/null) || return
+  else
+    # Fallback: extract hasDanger flag and text fields via awk.
+    # Works for well-formed ASCII responses (no embedded quotes in text).
+    local danger_flag="0"
+    [[ "$response" == *'"hasDanger":true'* ]] && danger_flag="1"
+    local texts
+    texts=$(printf '%s' "$response" | \
+      awk -F'"text":"' 'NF>1 { split($2, a, "\""); print a[1] }')
+    parsed="${danger_flag}"$'\n'"${texts}"
+  fi
 
   [[ -z "$parsed" ]] && return
 

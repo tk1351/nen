@@ -9,6 +9,8 @@ import type {
 } from "../types.ts";
 
 const DEFAULT_LIMIT = 10;
+const MAX_BUFFER_LENGTH = 10_000;
+const MAX_LIMIT = 100;
 
 /**
  * Creates a Deno-compatible `fetch` handler that processes suggestion requests.
@@ -30,7 +32,7 @@ export function createHandler(
     }
 
     if (req.method === "POST" && url.pathname === "/suggest") {
-      return handleSuggest(req, deps);
+      return await handleSuggest(req, deps);
     }
 
     return new Response("Not Found", { status: 404 });
@@ -49,7 +51,11 @@ async function handleSuggest(req: Request, deps: HandlerDeps): Promise<Response>
     return new Response("Bad Request: buffer must be a string", { status: 400 });
   }
 
-  const limit = body.limit ?? DEFAULT_LIMIT;
+  if (body.buffer.length > MAX_BUFFER_LENGTH) {
+    return new Response("Bad Request: buffer too long", { status: 400 });
+  }
+
+  const limit = Math.min(Math.max(1, body.limit ?? DEFAULT_LIMIT), MAX_LIMIT);
   const buffer = body.buffer;
 
   if (buffer.trim().length === 0) {

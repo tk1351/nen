@@ -4,7 +4,7 @@ import type { HandlerDeps, MatchCandidate, SuggestionResponse } from "../types.t
 
 function makeDeps(candidates: MatchCandidate[] = []): HandlerDeps {
   return {
-    getCandidates: async (_buffer, _limit) => candidates,
+    getCandidates: (_buffer, _limit) => Promise.resolve(candidates),
     checkDanger: (_command) => ({
       isDangerous: false,
       severity: "low" as const,
@@ -87,7 +87,7 @@ Deno.test("handler - hasDanger is true when suggestion has danger", async () => 
     { text: "rm -rf /", source: "history", frequency: 1 },
   ];
   const deps: HandlerDeps = {
-    getCandidates: async () => candidates,
+    getCandidates: () => Promise.resolve(candidates),
     checkDanger: (_command) => ({
       isDangerous: true,
       severity: "critical",
@@ -108,4 +108,26 @@ Deno.test("handler - response Content-Type is application/json", async () => {
   const req = makeRequest("/suggest", "POST", { buffer: "ls" });
   const res = await handler(req);
   assertEquals(res.headers.get("content-type"), "application/json");
+});
+
+Deno.test("handler - POST /suggest with oversized buffer returns 400", async () => {
+  const handler = createHandler(makeDeps());
+  const req = makeRequest("/suggest", "POST", { buffer: "a".repeat(10_001) });
+  const res = await handler(req);
+  assertEquals(res.status, 400);
+});
+
+Deno.test("handler - POST /suggest clamps limit to max 100", async () => {
+  let capturedLimit = 0;
+  const deps: HandlerDeps = {
+    getCandidates: (_buf, limit) => {
+      capturedLimit = limit;
+      return Promise.resolve([]);
+    },
+    checkDanger: () => ({ isDangerous: false, severity: "low" as const, reason: "", pattern: "" }),
+  };
+  const handler = createHandler(deps);
+  const req = makeRequest("/suggest", "POST", { buffer: "git", limit: 999_999 });
+  await handler(req);
+  assertEquals(capturedLimit, 100);
 });

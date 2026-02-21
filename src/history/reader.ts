@@ -11,6 +11,12 @@ import type { HistoryEntry } from "../types.ts";
 /** Default path to the zsh history file. */
 export const DEFAULT_HISTORY_PATH = `${Deno.env.get("HOME")}/.zsh_history`;
 
+/** Maximum bytes to read from the tail of a large history file (2 MB). */
+const MAX_HISTORY_BYTES = 2 * 1024 * 1024;
+
+/** Maximum parsed entries kept after deduplication. */
+const MAX_HISTORY_ENTRIES = 10_000;
+
 /**
  * Reads and parses the zsh history file at the given path.
  * Lines that cannot be parsed are silently skipped.
@@ -24,7 +30,24 @@ export async function readHistory(
 ): Promise<HistoryEntry[]> {
   let raw: string;
   try {
-    raw = await Deno.readTextFile(path);
+    const info = await Deno.stat(path);
+    if (info.size <= MAX_HISTORY_BYTES) {
+      raw = await Deno.readTextFile(path);
+    } else {
+      // Read only the tail to avoid OOM on huge history files
+      const file = await Deno.open(path, { read: true });
+      try {
+        await file.seek(-MAX_HISTORY_BYTES, Deno.SeekMode.End);
+        const buf = new Uint8Array(MAX_HISTORY_BYTES);
+        const nRead = await file.read(buf);
+        const tail = new TextDecoder().decode(buf.subarray(0, nRead ?? 0));
+        // Drop any partial first line introduced by the mid-file seek
+        const newlineIdx = tail.indexOf("\n");
+        raw = newlineIdx >= 0 ? tail.slice(newlineIdx + 1) : tail;
+      } finally {
+        file.close();
+      }
+    }
   } catch {
     return [];
   }
@@ -48,7 +71,9 @@ export function parseHistoryText(raw: string): HistoryEntry[] {
     }
   }
 
-  return Array.from(seen.values());
+  const all = Array.from(seen.values());
+  // Cap total entries to avoid unbounded memory after deduplication
+  return all.length > MAX_HISTORY_ENTRIES ? all.slice(-MAX_HISTORY_ENTRIES) : all;
 }
 
 /**

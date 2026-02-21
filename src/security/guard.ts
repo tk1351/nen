@@ -49,16 +49,40 @@ const DANGER_PATTERNS: DangerPattern[] = [
     description: "DROP TABLE/DATABASE",
   },
   {
+    pattern: /\brm\s+(--recursive|--force\s+.*--recursive|--recursive\s+.*--force)\b/,
+    severity: "critical",
+    reason: "Recursively deletes files using long-form flags",
+    description: "rm --recursive",
+  },
+  {
     pattern: /rm\s+-[^\s]*r/,
     severity: "medium",
     reason: "Recursively removes files",
     description: "rm -r",
   },
   {
-    pattern: /(curl|wget)\s+.*\|\s*(ba)?sh/,
+    pattern: /(curl|wget)\s+.*\|\s*(ba|z|da)?sh/,
     severity: "low",
     reason: "Pipes remote content directly into a shell",
-    description: "curl/wget | sh",
+    description: "curl/wget | sh/bash/zsh/dash",
+  },
+  {
+    pattern: /chmod\s+[augo]*[+][rwx]*w[rwx]*\s/,
+    severity: "high",
+    reason: "Adds write permission using symbolic mode",
+    description: "chmod symbolic world/group writable",
+  },
+  {
+    pattern: /\beval\b/,
+    severity: "high",
+    reason: "Evaluates a string as a shell command (code injection risk)",
+    description: "eval",
+  },
+  {
+    pattern: /^\.\s+\//,
+    severity: "medium",
+    reason: "Sources (executes) a script from an absolute path",
+    description: ". /path/to/script (dot/source command)",
   },
 ];
 

@@ -15,8 +15,12 @@ const CREATE_TABLE_SQL = `
   )
 `;
 
-const CREATE_INDEX_SQL = `
+const CREATE_INDEX_FREQUENCY_SQL = `
   CREATE INDEX IF NOT EXISTS idx_frequency ON entries (frequency DESC)
+`;
+
+const CREATE_INDEX_COMMAND_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_command ON entries (command)
 `;
 
 /**
@@ -25,8 +29,10 @@ const CREATE_INDEX_SQL = `
  */
 export function openStore(dbPath: string): CacheStore {
   const db = new Database(dbPath);
+  db.exec("PRAGMA journal_mode=WAL");
   db.exec(CREATE_TABLE_SQL);
-  db.exec(CREATE_INDEX_SQL);
+  db.exec(CREATE_INDEX_FREQUENCY_SQL);
+  db.exec(CREATE_INDEX_COMMAND_SQL);
   return new CacheStore(db);
 }
 

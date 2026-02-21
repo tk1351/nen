@@ -64,3 +64,10 @@ Deno.test("parseHistoryText - extended format with zero duration", () => {
   const entries = parseHistoryText(raw);
   assertEquals(entries[0].duration, 0);
 });
+
+Deno.test("parseHistoryText - caps output at 10,000 entries", () => {
+  // Generate 11,000 unique commands
+  const lines = Array.from({ length: 11_000 }, (_, i) => `echo cmd_${i}`).join("\n");
+  const entries = parseHistoryText(lines);
+  assertEquals(entries.length, 10_000);
+});

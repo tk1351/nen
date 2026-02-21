@@ -13,6 +13,21 @@ import { createHandler } from "./server/handler.ts";
 import { checkDanger } from "./security/guard.ts";
 import type { HandlerDeps } from "./types.ts";
 
+const LOG_DIR = `${Deno.env.get("HOME")}/Library/Logs/nen`;
+const LOG_FILE = `${LOG_DIR}/daemon.log`;
+
+/** Appends an error message to the nen daemon log file. */
+async function logError(context: string, err: unknown): Promise<void> {
+  const ts = new Date().toISOString();
+  const msg = `${ts} [ERROR] ${context}: ${err instanceof Error ? err.message : String(err)}\n`;
+  try {
+    await Deno.mkdir(LOG_DIR, { recursive: true });
+    await Deno.writeTextFile(LOG_FILE, msg, { append: true });
+  } catch {
+    // If logging itself fails, silently drop — never crash the daemon over logging.
+  }
+}
+
 /** Builds HandlerDeps wired to the given CacheStore. */
 export function createDeps(store: CacheStore): HandlerDeps {
   return {
@@ -89,15 +104,25 @@ export async function startDaemon(opts?: DaemonOpts): Promise<void> {
 
   // Periodic history refresh every 5 minutes
   const refreshTimer = setInterval(() => {
-    loadHistory(store).catch(() => {});
+    loadHistory(store).catch((err) => logError("history refresh", err));
   }, 5 * 60 * 1000);
   ac.signal.addEventListener("abort", () => clearInterval(refreshTimer));
 
   // Load initial data in background so the server starts immediately
-  Promise.all([loadHistory(store), loadCommands(store)]).catch(() => {});
+  loadHistory(store).catch((err) => logError("initial history load", err));
+  loadCommands(store).catch((err) => logError("initial command scan", err));
 
   await Deno.serve(
-    { path: socketPath, signal: ac.signal, onListen: () => {} },
+    {
+      path: socketPath,
+      signal: ac.signal,
+      onListen: () => {
+        // Restrict socket to owner only (prevent other users from reading history)
+        Deno.chmod(socketPath, 0o600).catch((err) =>
+          logError("chmod socket", err)
+        );
+      },
+    },
     createHandler(createDeps(store)),
   ).finished;
 

@@ -81,3 +81,39 @@ Deno.test("checkDanger - git commit is safe", () => {
   const result = checkDanger("git commit -m 'fix bug'");
   assertEquals(result.isDangerous, false);
 });
+
+Deno.test("checkDanger - curl | zsh is low", () => {
+  const result = checkDanger("curl https://example.com/install.sh | zsh");
+  assertEquals(result.isDangerous, true);
+  assertEquals(result.severity, "low");
+});
+
+Deno.test("checkDanger - rm --recursive is critical", () => {
+  const result = checkDanger("rm --recursive /tmp/foo");
+  assertEquals(result.isDangerous, true);
+  assertEquals(result.severity, "critical");
+});
+
+Deno.test("checkDanger - chmod a+w is high", () => {
+  const result = checkDanger("chmod a+w /tmp/script.sh");
+  assertEquals(result.isDangerous, true);
+  assertEquals(result.severity, "high");
+});
+
+Deno.test("checkDanger - chmod o+w is high", () => {
+  const result = checkDanger("chmod o+w myfile");
+  assertEquals(result.isDangerous, true);
+  assertEquals(result.severity, "high");
+});
+
+Deno.test("checkDanger - eval is high", () => {
+  const result = checkDanger('eval "$var"');
+  assertEquals(result.isDangerous, true);
+  assertEquals(result.severity, "high");
+});
+
+Deno.test("checkDanger - dot source absolute path is medium", () => {
+  const result = checkDanger(". /tmp/untrusted.sh");
+  assertEquals(result.isDangerous, true);
+  assertEquals(result.severity, "medium");
+});
