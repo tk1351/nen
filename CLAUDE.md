@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-deno task test     # Run all 46 tests (across src/**/*.test.ts)
+deno task test     # Run all 68 tests (across src/**/*.test.ts)
 deno task check    # Type-check all TypeScript files
 deno task dev      # Run daemon with --watch
 deno task start    # Run daemon once
@@ -49,12 +49,19 @@ deno lint src/
 
 ## Implementation Status
 
-Phases 1–6 (`security`, `matcher`, `history`, `commands`, `cache`, `server`) are **complete with full test coverage**.
+All phases (1–9) are **complete with full test coverage** (68 tests).
 
-Phases 7–9 are **TODO**:
-- **Phase 7** (`main.ts`): Wire CacheStore + HistoryReader + CommandScanner + HandlerDeps + `Deno.serve`
-- **Phase 8** (`shell/nen.zsh`): Implement ZLE widget stubs (`_nen_fetch_suggestions`, `_nen_render_ghost_text`, etc.)
-- **Phase 9** (`scripts/install.ts`): Compile binary → `~/.local/bin/nen`, install LaunchAgent plist, patch `.zshrc`
+| Phase | Module | File | Status |
+|-------|--------|------|--------|
+| 1 | Security | `security/guard.ts` | ✅ Complete |
+| 2 | Fuzzy matching | `matcher/fuzzy.ts` | ✅ Complete |
+| 3 | History parsing | `history/reader.ts` | ✅ Complete |
+| 4 | PATH scanning | `commands/scanner.ts` | ✅ Complete |
+| 5 | Cache | `cache/store.ts` | ✅ Complete |
+| 6 | HTTP handler | `server/handler.ts` | ✅ Complete |
+| 7 | Daemon entry | `main.ts` | ✅ Complete |
+| 8 | Shell widget | `shell/nen.zsh` | ✅ Complete |
+| 9 | Installer | `scripts/install.ts` | ✅ Complete |
 
 ## TDD Rules
 
