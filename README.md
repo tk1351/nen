@@ -26,11 +26,15 @@ zsh (ZLE Widget) ──────── UNIX Socket ──────── D
 ## セットアップ
 
 ```bash
+# 型チェック
+deno task check
+
+# テスト実行 (68 tests)
+deno task test
+deno task test:shell
+
 # 開発用起動
 deno task dev
-
-# テスト実行
-deno task test
 
 # ネイティブバイナリコンパイル
 deno task compile
@@ -39,19 +43,30 @@ deno task compile
 deno task install
 ```
 
+## キーバインド
+
+| キー | 動作 |
+|------|------|
+| `→` / `End` | サジェストを確定（ghost text を BUFFER に展開） |
+| `↓` | 次候補へ / ドロップダウンを開く |
+| `↑` | 前候補へ |
+| `Esc` | ghost text を消去 |
+| `Backspace` | 1文字削除して再サジェスト |
+| 印字可能文字 | 入力して再サジェスト |
+
 ## 開発
 
-### TDD 実装順序
+### モジュール一覧
 
-1. `src/security/guard.ts` — 危険コマンド検出（pure function）
-2. `src/matcher/fuzzy.ts` — fuzzy スコアリング（pure function）
-3. `src/history/reader.ts` — ~/.zsh_history パーサー
-4. `src/commands/scanner.ts` — PATH コマンドスキャナー
-5. `src/cache/store.ts` — SQLite キャッシュ
-6. `src/server/handler.ts` — HTTP リクエストハンドラー
-7. `src/main.ts` — Daemon エントリーポイント
-8. `shell/nen.zsh` — ZLE ウィジェット
-9. `scripts/install.ts` — インストーラー
+1. ✅ `src/security/guard.ts` — 危険コマンド検出（pure function）
+2. ✅ `src/matcher/fuzzy.ts` — fuzzy スコアリング（pure function）
+3. ✅ `src/history/reader.ts` — ~/.zsh_history パーサー
+4. ✅ `src/commands/scanner.ts` — PATH コマンドスキャナー
+5. ✅ `src/cache/store.ts` — SQLite キャッシュ
+6. ✅ `src/server/handler.ts` — HTTP リクエストハンドラー
+7. ✅ `src/main.ts` — Daemon エントリーポイント
+8. ✅ `shell/nen.zsh` — ZLE ウィジェット
+9. ✅ `scripts/install.ts` — インストーラー
 
 ### セキュリティ対策
 
@@ -75,6 +90,7 @@ nen/
 ├── README.md
 ├── src/
 │   ├── main.ts
+│   ├── main.test.ts
 │   ├── types.ts
 │   ├── history/
 │   │   ├── reader.ts
@@ -95,9 +111,11 @@ nen/
 │       ├── handler.ts
 │       └── handler.test.ts
 ├── shell/
-│   └── nen.zsh
+│   ├── nen.zsh
+│   └── nen.test.zsh
 ├── scripts/
-│   └── install.ts
+│   ├── install.ts
+│   └── install.test.ts
 └── launchd/
     └── com.nen.daemon.plist
 ```
