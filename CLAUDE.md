@@ -56,6 +56,13 @@ Phases 7–9 are **TODO**:
 - **Phase 8** (`shell/nen.zsh`): Implement ZLE widget stubs (`_nen_fetch_suggestions`, `_nen_render_ghost_text`, etc.)
 - **Phase 9** (`scripts/install.ts`): Compile binary → `~/.local/bin/nen`, install LaunchAgent plist, patch `.zshrc`
 
+## TDD Rules
+
+- **テストを先に書く（Red → Green → Refactor）**
+- 実装ファイル `src/foo.ts` には必ず対応する `src/foo.test.ts` が存在すること
+- コミット前に `deno task check && deno task test && deno task test:shell` が全通過すること
+- 新規テストは `Deno.test(...)` を使い、既存のパターン（`tmpPath()`、DI mock）に従うこと
+
 ## Key Patterns
 
 - **Dependency injection**: `server/handler.ts` exports `createHandler(deps: HandlerDeps)` — pass mock deps in tests.

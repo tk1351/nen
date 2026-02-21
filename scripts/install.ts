@@ -2,19 +2,46 @@
 /**
  * install.ts - nen installer script.
  *
- * TODO (Phase 9):
- *   1. Compile nen binary  (deno compile ...)
- *   2. Copy binary to ~/.local/bin/nen (or user-specified prefix)
+ * Steps:
+ *   1. Compile nen binary (deno compile)
+ *   2. Copy binary to ~/.local/bin/nen + chmod +x
  *   3. Create log directory ~/Library/Logs/nen
- *   4. Instantiate com.nen.daemon.plist template with real paths
- *   5. Install LaunchAgent to ~/Library/LaunchAgents/com.nen.daemon.plist
- *   6. launchctl bootstrap / load the agent
- *   7. Append `source ~/.nen/nen.zsh` to ~/.zshrc (idempotent)
- *   8. Copy shell/nen.zsh to ~/.nen/nen.zsh
- *   9. Print success message with next steps
+ *   4. Instantiate com.nen.daemon.plist template
+ *   5. Install LaunchAgent to ~/Library/LaunchAgents/
+ *   6. launchctl bootstrap / reload the agent
+ *   7. Copy shell/nen.zsh to ~/.nen/nen.zsh
+ *   8. Append source line to ~/.zshrc (idempotent)
+ *   9. Print success message
  */
 
-const HOME = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? "/tmp";
+// ---------------------------------------------------------------------------
+// Pure helper functions (exported for testing)
+// ---------------------------------------------------------------------------
+
+/**
+ * Replaces all `__KEY__` placeholders in template with values from vars.
+ * Unknown placeholders are left untouched.
+ */
+export function substituteTemplate(
+  template: string,
+  vars: Record<string, string>,
+): string {
+  return template.replace(/__([A-Z_]+)__/g, (_match, key: string) => vars[key] ?? _match);
+}
+
+/**
+ * Returns true when `line` is NOT already present in `content`.
+ */
+export function needsSourceLine(content: string, line: string): boolean {
+  return !content.includes(line);
+}
+
+// ---------------------------------------------------------------------------
+// Installer utilities
+// ---------------------------------------------------------------------------
+
+const HOME = Deno.env.get("HOME") ?? "/tmp";
+const SOURCE_LINE = 'source "$HOME/.nen/nen.zsh"';
 
 async function run(cmd: string[]): Promise<void> {
   const proc = new Deno.Command(cmd[0], { args: cmd.slice(1) });
@@ -25,49 +52,81 @@ async function run(cmd: string[]): Promise<void> {
   }
 }
 
-async function main(): Promise<void> {
-  console.log("nen installer — Phase 9 (not yet implemented)");
-
-  // TODO: Step 1 — compile
-  // await run(["deno", "task", "compile"]);
-
-  // TODO: Step 2 — copy binary
-  // const binDir = `${HOME}/.local/bin`;
-  // await Deno.mkdir(binDir, { recursive: true });
-  // await Deno.copyFile("./nen", `${binDir}/nen`);
-
-  // TODO: Step 3 — log directory
-  // const logDir = `${HOME}/Library/Logs/nen`;
-  // await Deno.mkdir(logDir, { recursive: true });
-
-  // TODO: Step 4 — instantiate plist template
-  // const plistTemplate = await Deno.readTextFile("./launchd/com.nen.daemon.plist");
-  // const plist = plistTemplate
-  //   .replace(/__NEN_BINARY_PATH__/g, `${binDir}/nen`)
-  //   .replace(/__NEN_LOG_DIR__/g, logDir)
-  //   .replace(/__HOME__/g, HOME)
-  //   .replace(/__PATH__/g, Deno.env.get("PATH") ?? "");
-
-  // TODO: Step 5 — install LaunchAgent
-  // const agentDir = `${HOME}/Library/LaunchAgents`;
-  // await Deno.mkdir(agentDir, { recursive: true });
-  // await Deno.writeTextFile(`${agentDir}/com.nen.daemon.plist`, plist);
-
-  // TODO: Step 6 — load LaunchAgent
-  // await run(["launchctl", "bootstrap", `gui/${Deno.uid()}`, `${agentDir}/com.nen.daemon.plist`]);
-
-  // TODO: Step 7/8 — install shell integration
-  // await Deno.mkdir(`${HOME}/.nen`, { recursive: true });
-  // await Deno.copyFile("./shell/nen.zsh", `${HOME}/.nen/nen.zsh`);
-  // const zshrc = `${HOME}/.zshrc`;
-  // const zshrcContent = await Deno.readTextFile(zshrc).catch(() => "");
-  // const sourceLine = 'source "$HOME/.nen/nen.zsh"';
-  // if (!zshrcContent.includes(sourceLine)) {
-  //   await Deno.writeTextFile(zshrc, `${zshrcContent}\n# nen\n${sourceLine}\n`);
-  // }
-
-  // TODO: Step 9 — success message
-  console.log("Done. Restart your terminal or run: source ~/.zshrc");
+async function runIgnoreError(cmd: string[]): Promise<void> {
+  try {
+    await run(cmd);
+  } catch {
+    // ignore — e.g. launchctl bootout when not loaded
+  }
 }
 
-await main();
+// ---------------------------------------------------------------------------
+// Main installer
+// ---------------------------------------------------------------------------
+
+async function main(): Promise<void> {
+  console.log("[nen] Installing...");
+
+  // Step 1: Compile binary
+  console.log("[nen] Compiling binary...");
+  await run(["deno", "task", "compile"]);
+
+  // Step 2: Copy binary to ~/.local/bin
+  const binDir = `${HOME}/.local/bin`;
+  await Deno.mkdir(binDir, { recursive: true });
+  await Deno.copyFile("./nen", `${binDir}/nen`);
+  await run(["chmod", "+x", `${binDir}/nen`]);
+  console.log(`[nen] Binary installed → ${binDir}/nen`);
+
+  // Step 3: Create log directory
+  const logDir = `${HOME}/Library/Logs/nen`;
+  await Deno.mkdir(logDir, { recursive: true });
+
+  // Step 4: Instantiate plist template
+  const plistTemplate = await Deno.readTextFile("./launchd/com.nen.daemon.plist");
+  const plist = substituteTemplate(plistTemplate, {
+    NEN_BINARY_PATH: `${binDir}/nen`,
+    NEN_LOG_DIR: logDir,
+    HOME,
+    PATH: Deno.env.get("PATH") ?? "",
+  });
+
+  // Step 5: Install LaunchAgent
+  const agentDir = `${HOME}/Library/LaunchAgents`;
+  await Deno.mkdir(agentDir, { recursive: true });
+  const plistPath = `${agentDir}/com.nen.daemon.plist`;
+  await Deno.writeTextFile(plistPath, plist);
+  console.log(`[nen] LaunchAgent installed → ${plistPath}`);
+
+  // Step 6: Load LaunchAgent
+  const uid = Deno.uid();
+  await runIgnoreError(["launchctl", "bootout", `gui/${uid}`, plistPath]);
+  await run(["launchctl", "bootstrap", `gui/${uid}`, plistPath]);
+  console.log("[nen] LaunchAgent loaded");
+
+  // Step 7: Copy shell integration
+  const nenDir = `${HOME}/.nen`;
+  await Deno.mkdir(nenDir, { recursive: true });
+  await Deno.copyFile("./shell/nen.zsh", `${nenDir}/nen.zsh`);
+
+  // Step 8: Patch ~/.zshrc (idempotent)
+  const zshrc = `${HOME}/.zshrc`;
+  const zshrcContent = await Deno.readTextFile(zshrc).catch(() => "");
+  if (needsSourceLine(zshrcContent, SOURCE_LINE)) {
+    await Deno.writeTextFile(
+      zshrc,
+      `${zshrcContent}\n# nen — inline suggestions\n${SOURCE_LINE}\n`,
+    );
+    console.log(`[nen] Patched ${zshrc}`);
+  } else {
+    console.log(`[nen] ${zshrc} already contains source line — skipped`);
+  }
+
+  // Step 9: Success
+  console.log("\n[nen] Installation complete!");
+  console.log("Restart your terminal or run: source ~/.zshrc");
+}
+
+if (import.meta.main) {
+  await main();
+}
